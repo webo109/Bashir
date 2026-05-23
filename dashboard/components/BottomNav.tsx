@@ -18,7 +18,7 @@ export function BottomNav() {
             key={it.href}
             href={it.href}
             className={`flex flex-col items-center gap-0.5 text-xs ${
-              active ? "text-[#1A1614] font-semibold" : "text-[#9C9189]"
+              active ? "text-[#1A1614] font-semibold" : "text-[#7A7066]"
             }`}
           >
             <span className="text-base leading-none">{it.icon}</span>
@@ -26,8 +26,13 @@ export function BottomNav() {
           </Link>
         );
       })}
-      <form action="/api/logout" method="POST" className="contents">
-        <button className="flex flex-col items-center gap-0.5 text-xs text-[#9C9189]">
+      {/* FIX-15: logout lives in its own form element with an explicit submit
+          button so an accidental Enter inside the nav can't trigger it. */}
+      <form action="/api/logout" method="POST" className="flex">
+        <button
+          type="submit"
+          className="flex flex-col items-center gap-0.5 text-xs text-[#7A7066]"
+        >
           <span className="text-base leading-none">⏻</span>
           <span>Logout</span>
         </button>

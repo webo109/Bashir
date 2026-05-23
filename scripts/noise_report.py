@@ -1,5 +1,10 @@
 """Identify noise generators and produce a one-click cleanup sheet.
 
+NOTE: This CLI is the counterpart to the V1.2 in-app /senders page in the
+dashboard. Both pull the same data (emails + classifications) and both
+hydrate List-Unsubscribe URLs. Keep this around for power-user / scripted
+workflows (it writes a Markdown file); the web UI is for everyday use.
+
 A "noise generator" = a sender where (almost) every email went to archive.
 For each one, this script outputs:
   - the actual List-Unsubscribe URL pulled from Gmail headers

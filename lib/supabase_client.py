@@ -54,18 +54,28 @@ def update_history_id(account_id: int, history_id: str) -> None:
 # --- emails ----------------------------------------------------------------
 
 def existing_gmail_ids(gmail_msg_ids: Iterable[str]) -> set[str]:
-    """Return the subset of gmail_msg_ids that are already in the DB."""
+    """Return the subset of gmail_msg_ids that are already in the DB.
+
+    FIX-10: chunked to ~200 ids per request because PostgREST `.in_()` builds
+    a single URL whose length is bounded by Nginx/CloudFront. Large backfills
+    on 50k-message inboxes used to either error or silently truncate.
+    """
     ids = list(gmail_msg_ids)
     if not ids:
         return set()
-    res = (
-        client()
-        .table("emails")
-        .select("gmail_msg_id")
-        .in_("gmail_msg_id", ids)
-        .execute()
-    )
-    return {row["gmail_msg_id"] for row in (res.data or [])}
+    chunk_size = 200
+    found: set[str] = set()
+    for i in range(0, len(ids), chunk_size):
+        chunk = ids[i : i + chunk_size]
+        res = (
+            client()
+            .table("emails")
+            .select("gmail_msg_id")
+            .in_("gmail_msg_id", chunk)
+            .execute()
+        )
+        found.update(row["gmail_msg_id"] for row in (res.data or []))
+    return found
 
 
 def insert_emails(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:

@@ -41,7 +41,7 @@ export default function LoginPage() {
           <h1 className="font-serif text-3xl text-[#1A1614]">
             Bashir <span className="text-[#9C7847] text-2xl ml-1">بشير</span>
           </h1>
-          <p className="text-xs uppercase tracking-wider text-[#9C9189] mt-1">
+          <p className="text-xs uppercase tracking-wider text-[#7A7066] mt-1">
             Bearer of good news
           </p>
         </div>
@@ -58,13 +58,6 @@ export default function LoginPage() {
           {pending ? "…" : "Enter"}
         </Button>
       </form>
-      <style jsx global>{`
-        @keyframes shake {
-          0%, 100% { transform: translateX(0); }
-          25% { transform: translateX(-6px); }
-          75% { transform: translateX(6px); }
-        }
-      `}</style>
     </main>
   );
 }

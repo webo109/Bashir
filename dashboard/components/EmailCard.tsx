@@ -24,11 +24,11 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
             )}
             {email.from_name || email.from_email || "(unknown)"}
           </div>
-          <div className="text-[11px] text-[#9C9189] whitespace-nowrap">
+          <div className="text-[11px] text-[#7A7066] whitespace-nowrap">
             {relativeTime(email.received_at)}
           </div>
         </div>
-        <div className="text-[11px] text-[#9C9189] truncate mt-0.5">
+        <div className="text-[11px] text-[#7A7066] truncate mt-0.5">
           {email.from_email}
         </div>
         <div className="text-sm text-[#3D362F] mt-1.5 leading-snug line-clamp-2">
@@ -40,7 +40,7 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
           </div>
         )}
         {email.why_priority && (
-          <div className="text-[11px] uppercase tracking-wider text-[#9C9189] mt-2 font-semibold">
+          <div className="text-[11px] uppercase tracking-wider text-[#7A7066] mt-2 font-semibold">
             {email.why_priority}
           </div>
         )}

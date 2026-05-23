@@ -7,6 +7,11 @@ export function ArchiveSearch() {
   const router = useRouter();
   const params = useSearchParams();
   const [q, setQ] = useState(params.get("q") ?? "");
+  // FIX-12: snapshot the params as a string so the effect re-runs when the
+  // chip row (or any other URL change) updates them. The previous
+  // implementation read `params` from the closure with [q] as the only
+  // dependency, so changing filters mid-typing would clobber them.
+  const paramsKey = params.toString();
 
   useEffect(() => {
     const t = setTimeout(() => {
@@ -17,8 +22,7 @@ export function ArchiveSearch() {
       router.replace(`/archive?${p.toString()}`);
     }, 200);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q]);
+  }, [q, paramsKey, params, router]);
 
   return (
     <Input

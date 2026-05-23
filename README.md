@@ -44,6 +44,8 @@ Open the Supabase SQL editor for your project → New query → paste `sql/schem
 
 Also apply `sql/unsubscribe.sql` (V1.2 migration) if you want in-app unsubscribe support.
 
+Optional: paste `sql/perf_indexes.sql` to speed up archive search at scale (adds `pg_trgm` GIN indexes on `subject`, `from_email`, `from_name`). Recommended once the inbox crosses a few thousand rows.
+
 ### 2. Google Cloud OAuth
 1. https://console.cloud.google.com → create project "Bashir".
 2. APIs & Services → Library → enable **Gmail API**.

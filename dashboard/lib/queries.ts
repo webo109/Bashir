@@ -23,8 +23,31 @@ interface RawRow {
   }>;
 }
 
+/**
+ * Strip PostgREST-meaningful characters from a `.or()` filter value.
+ * `,` `(` `)` are PostgREST list/grouping separators; `%` and `_` are ILIKE
+ * wildcards we want to escape so the user's literal text matches literally.
+ * (FIX-4)
+ */
+export function sanitizePostgrestLike(q: string): string {
+  if (!q) return "";
+  return q
+    // Drop PostgREST OR/grouping characters entirely — there's no documented
+    // escape for them inside an `.or()` clause.
+    .replace(/[,()]/g, " ")
+    // Escape ILIKE wildcards so a literal `%` or `_` matches itself.
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_")
+    // Strip colon, asterisk, and the PostgREST quote char as well — none of
+    // them are needed for a substring search and all can interact badly.
+    .replace(/[:*"]/g, " ")
+    .trim();
+}
+
 function flatten(row: RawRow): EmailRow {
-  // Most recent classification (server-side ordering not guaranteed — sort here).
+  // Most recent classification first — server-side ordering inside a nested
+  // select is best-effort in supabase-js v2, so sort defensively (FIX-8 mirror).
   const cls = (row.classifications || []).slice().sort(
     (a, b) => Date.parse(b.classified_at) - Date.parse(a.classified_at)
   );
@@ -65,13 +88,19 @@ async function hydrateUnsubscribe(rows: EmailRow[]): Promise<EmailRow[]> {
   });
 }
 
+// Nested select tries to order + limit classifications server-side (FIX-7).
+// supabase-js v2 doesn't always honor `.order()` inside a relational embed,
+// so `flatten()` still re-sorts client-side as a safety net.
+const EMAIL_WITH_LATEST_CLASS_SELECT =
+  "id, gmail_msg_id, account_id, from_name, from_email, subject, snippet, body, received_at, gmail_url, folder, accounts(email), classifications(category, summary, why_priority, classified_at, order=classified_at.desc, limit=1)";
+
 export async function getTodayEmails(): Promise<EmailRow[]> {
   const since = muscatTodayStart();
+  // Today is the editorial view: only inbox messages from this Muscat day.
+  // `getTodayEmails` intentionally ignores folder='sent' (audit nit).
   const { data, error } = await supabase()
     .from("emails")
-    .select(
-      "id, gmail_msg_id, account_id, from_name, from_email, subject, snippet, body, received_at, gmail_url, folder, accounts(email), classifications(category, summary, why_priority, classified_at)"
-    )
+    .select(EMAIL_WITH_LATEST_CLASS_SELECT)
     .gte("received_at", since)
     .eq("folder", "inbox")
     .order("received_at", { ascending: false });
@@ -89,24 +118,28 @@ export interface ArchiveQuery {
   pageSize?: number;
 }
 
-export async function searchArchive(
-  params: ArchiveQuery
-): Promise<{ rows: EmailRow[]; hasMore: boolean }> {
-  const pageSize = params.pageSize ?? 50;
-  const page = params.page ?? 0;
-
+function buildArchiveQuery(
+  params: ArchiveQuery,
+  offset: number,
+  windowSize: number
+) {
   let query = supabase()
     .from("emails")
-    .select(
-      "id, gmail_msg_id, account_id, from_name, from_email, subject, snippet, body, received_at, gmail_url, folder, accounts(email), classifications(category, summary, why_priority, classified_at)"
-    )
+    .select(EMAIL_WITH_LATEST_CLASS_SELECT)
     .eq("folder", "inbox")
     .order("received_at", { ascending: false })
-    .range(page * pageSize, page * pageSize + pageSize); // +1 to detect hasMore
+    .range(offset, offset + windowSize - 1);
 
   if (params.q && params.q.trim()) {
-    const q = `%${params.q.trim()}%`;
-    query = query.or(`subject.ilike.${q},from_email.ilike.${q},from_name.ilike.${q},body.ilike.${q}`);
+    // FIX-4: sanitize before interpolating into a PostgREST .or() clause.
+    // Raw commas and parens break the parser; %/_ become literal wildcards.
+    const safe = sanitizePostgrestLike(params.q);
+    if (safe) {
+      const q = `%${safe}%`;
+      query = query.or(
+        `subject.ilike.${q},from_email.ilike.${q},from_name.ilike.${q},body.ilike.${q}`
+      );
+    }
   }
   if (params.accountIds && params.accountIds.length) {
     query = query.in("account_id", params.accountIds);
@@ -117,21 +150,61 @@ export async function searchArchive(
     const since = new Date(Date.now() - days * 24 * 3600_000).toISOString();
     query = query.gte("received_at", since);
   }
+  return query;
+}
 
-  const { data, error } = await query;
-  if (error) throw error;
-  const rows = (data as unknown as RawRow[]).map(flatten);
+export async function searchArchive(
+  params: ArchiveQuery
+): Promise<{ rows: EmailRow[]; hasMore: boolean }> {
+  const pageSize = params.pageSize ?? 50;
+  const page = params.page ?? 0;
+  const categorySet =
+    params.categories && params.categories.length
+      ? new Set(params.categories)
+      : null;
 
-  // Category filter is applied post-fetch since classification is a 1-to-many join
-  // and Supabase filters on it would drop unclassified emails.
-  let filtered = rows;
-  if (params.categories && params.categories.length) {
-    const set = new Set(params.categories);
-    filtered = rows.filter((r) => r.category && set.has(r.category));
+  // FIX-3: category filter was applied AFTER pagination, so hasMore was wrong
+  // whenever a chip was selected. Server-side filtering through Supabase's
+  // nested filter syntax against `classifications.category` is not reliably
+  // supported in supabase-js v2 (it would drop emails without classifications
+  // anyway, which the audit flagged). Instead we keep the JS filter but
+  // paginate over raw DB pages until we have either pageSize+1 matching rows
+  // or we hit a hard ceiling — that way Older→ disappears only when there
+  // really is no more content matching the filter.
+  const dbPageSize = pageSize * 2; // fetch a bit ahead each round
+  const maxScans = 10; // cap total work: scan at most 10*dbPageSize raw rows
+  const startOffset = page * pageSize;
+
+  const filtered: EmailRow[] = [];
+  let hasMore = false;
+  let scanOffset = startOffset;
+
+  for (let i = 0; i < maxScans; i++) {
+    const { data, error } = await buildArchiveQuery(params, scanOffset, dbPageSize + 1);
+    if (error) throw error;
+    const batch = (data as unknown as RawRow[]) || [];
+    const got = batch.slice(0, dbPageSize);
+    const sawMoreFromDb = batch.length > dbPageSize;
+
+    for (const r of got) {
+      const row = flatten(r);
+      if (categorySet && !(row.category && categorySet.has(row.category))) continue;
+      filtered.push(row);
+      if (filtered.length > pageSize) break;
+    }
+    if (filtered.length > pageSize) {
+      hasMore = true;
+      break;
+    }
+    if (!sawMoreFromDb) {
+      // DB exhausted under current filters.
+      break;
+    }
+    scanOffset += dbPageSize;
   }
 
-  const hasMore = filtered.length > pageSize;
-  return { rows: await hydrateUnsubscribe(filtered.slice(0, pageSize)), hasMore };
+  const page_rows = filtered.slice(0, pageSize);
+  return { rows: await hydrateUnsubscribe(page_rows), hasMore };
 }
 
 export async function getAccounts(): Promise<Array<{ id: number; email: string }>> {
@@ -159,17 +232,21 @@ export async function getNoiseGenerators(opts: {
   for (;;) {
     const { data, error } = await supabase()
       .from("emails")
-      .select("from_email, from_name, classifications(category)")
+      .select("from_email, from_name, classifications(category, classified_at)")
       .eq("folder", "inbox")
       .range(page * pageSize, page * pageSize + pageSize - 1);
     if (error) throw error;
-    type NoiseRow = { from_email: string | null; from_name: string | null; classifications: Array<{ category: string }> | null };
+    type NoiseRow = { from_email: string | null; from_name: string | null; classifications: Array<{ category: string; classified_at?: string }> | null };
     const batch = (data as unknown as NoiseRow[]) || [];
     if (!batch.length) break;
     for (const r of batch) {
       const addr = (r.from_email || "").toLowerCase();
       if (!addr) continue;
-      const cls = (r.classifications || []) as Array<{ category: string }>;
+      // Latest classification wins (FIX-8 mirror). Server-side ordering inside
+      // a nested embed isn't guaranteed, so sort defensively.
+      const cls = ((r.classifications || []) as Array<{ category: string; classified_at?: string }>)
+        .slice()
+        .sort((a, b) => Date.parse(b.classified_at || "") - Date.parse(a.classified_at || ""));
       const cat = cls[0]?.category;
       const cur = stats.get(addr) ?? { name: r.from_name ?? null, total: 0, archive: 0 };
       cur.total++;

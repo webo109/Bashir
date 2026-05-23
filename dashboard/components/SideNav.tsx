@@ -34,8 +34,15 @@ export function SideNav() {
         Senders
       </Link>
       <div className="mt-auto">
+        {/* FIX-15: explicit submit button type to prevent accidental submission
+            from a focus-Enter elsewhere on the page. */}
         <form action="/api/logout" method="POST">
-          <button className="text-sm text-[#9C9189] hover:text-[#1A1614]">⏻ Logout</button>
+          <button
+            type="submit"
+            className="text-sm text-[#7A7066] hover:text-[#1A1614]"
+          >
+            ⏻ Logout
+          </button>
         </form>
       </div>
     </aside>

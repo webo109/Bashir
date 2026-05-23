@@ -24,19 +24,22 @@ export function greetingPeriod(
 
 export function muscatDateLabel(now: Date = new Date()): string {
   // e.g. "Saturday · May 24"
-  const muscat = new Date(now.getTime() + MUSCAT_OFFSET_MIN * 60_000);
-  const day = muscat.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
-  const md = muscat.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "UTC" });
+  // FIX-13: format directly in Asia/Muscat instead of shifting the Date by
+  // +4h and formatting with timeZone: "UTC". Less surprising for the next
+  // person who reads this.
+  const day = now.toLocaleDateString("en-US", { weekday: "long", timeZone: "Asia/Muscat" });
+  const md = now.toLocaleDateString("en-US", { month: "long", day: "numeric", timeZone: "Asia/Muscat" });
   return `${day} · ${md}`;
 }
 
 export function relativeTime(iso: string, now: Date = new Date()): string {
   const then = new Date(iso).getTime();
-  const diffMin = Math.max(0, Math.round((now.getTime() - then) / 60_000));
+  // NIT-1: floor so 30s shows "just now" not "1m ago".
+  const diffMin = Math.max(0, Math.floor((now.getTime() - then) / 60_000));
   if (diffMin < 1) return "just now";
   if (diffMin < 60) return `${diffMin}m ago`;
-  const h = Math.round(diffMin / 60);
+  const h = Math.floor(diffMin / 60);
   if (h < 24) return `${h}h ago`;
-  const d = Math.round(h / 24);
+  const d = Math.floor(h / 24);
   return `${d}d ago`;
 }

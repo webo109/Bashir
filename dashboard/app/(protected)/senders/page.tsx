@@ -78,7 +78,7 @@ export default async function SendersPage({
                 <div className="font-semibold text-[#1A1614] text-sm truncate">
                   {s.from_name || s.from_email}
                 </div>
-                <div className="text-[11px] text-[#9C9189] truncate mt-0.5">
+                <div className="text-[11px] text-[#7A7066] truncate mt-0.5">
                   {s.from_email}
                 </div>
               </div>

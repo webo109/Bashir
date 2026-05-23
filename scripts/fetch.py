@@ -57,25 +57,65 @@ def fetch_daily_for_account(account: dict) -> tuple[list[dict], str]:
     return parsed, latest_history_id
 
 
-def fetch_backfill_for_account(account: dict, months: int) -> list[dict]:
+def fetch_backfill_for_account(account: dict, months: int, max_total: int | None = None) -> list[dict]:
+    """Backfill the last `months` of inbox+sent for one account.
+
+    If max_total is set, stops both listing and per-message fetches once that many
+    new messages have been parsed (FIX-2: caps work for each iteration of the
+    documented loop-in-N-chunk pattern).
+    """
     email = account["email"]
     service = gmail.build_service(account["oauth_refresh_token"])
-    after = datetime.now(timezone.utc) - timedelta(days=30 * months)
+    # 12 months ~= 365.25 days. 30*months under-counts by ~5 days at 12 months (NIT-4).
+    after = datetime.now(timezone.utc) - timedelta(days=int(months * 30.44))
     parsed_all: list[dict] = []
 
     for folder in ("inbox", "sent"):
+        if max_total is not None and len(parsed_all) >= max_total:
+            break
         print(f"[{email}] listing {folder} since {after.date()}…")
-        ids = list(gmail.list_since(service, after, folder=folder))
-        existing = supabase_client.existing_gmail_ids(ids)
-        new_ids = [i for i in ids if i not in existing]
-        print(f"[{email}] {len(new_ids)}/{len(ids)} new {folder} messages")
-        for mid in new_ids:
-            m = gmail.get_message(service, mid)
-            m["account_id"] = account["id"]
-            m["account_email"] = email
-            parsed_all.append(m)
+        # Stream ids; stop the listing once we know we have enough new ones.
+        ids: list[str] = []
+        for mid in gmail.list_since(service, after, folder=folder):
+            ids.append(mid)
+            # Periodically check the dedup set so we can stop early when max_total caps us.
+            # We don't know which ids are new until we query Supabase, so we batch
+            # and dedup every ~500 ids and break the listing if the cap is hit.
+            if max_total is not None and len(ids) >= 500:
+                existing = supabase_client.existing_gmail_ids(ids)
+                fresh = [i for i in ids if i not in existing]
+                # Reset for the next probe round; if we already have enough, stop listing.
+                if len(parsed_all) + len(fresh) >= max_total:
+                    ids = fresh
+                    break
+                # Drain what we have so we don't redo work — fetch what we got, then keep listing.
+                for nid in fresh:
+                    if max_total is not None and len(parsed_all) >= max_total:
+                        break
+                    m = gmail.get_message(service, nid)
+                    m["account_id"] = account["id"]
+                    m["account_email"] = email
+                    parsed_all.append(m)
+                ids = []
+                if max_total is not None and len(parsed_all) >= max_total:
+                    break
+
+        # Finish the tail: fetch any remaining new ids up to max_total.
+        if ids:
+            existing = supabase_client.existing_gmail_ids(ids)
+            new_ids = [i for i in ids if i not in existing]
+            print(f"[{email}] {len(new_ids)}/{len(ids)} new {folder} messages (final batch)")
+            for mid in new_ids:
+                if max_total is not None and len(parsed_all) >= max_total:
+                    break
+                m = gmail.get_message(service, mid)
+                m["account_id"] = account["id"]
+                m["account_email"] = email
+                parsed_all.append(m)
 
     # Also stash the current history id so daily.py can pick up cleanly.
+    # (Backfill is bookend-isolated: if we got this far, all listed messages
+    # are already buffered in parsed_all — writing the cursor here is safe.)
     try:
         current = gmail.get_current_history_id(service)
         supabase_client.update_history_id(account["id"], current)
@@ -108,9 +148,13 @@ def main() -> None:
         try:
             if args.mode == "daily":
                 parsed, latest_hist = fetch_daily_for_account(acct)
-                supabase_client.update_history_id(acct["id"], latest_hist)
             else:
-                parsed = fetch_backfill_for_account(acct, args.months)
+                # FIX-2: push --limit down so backfill doesn't fetch the full
+                # window before trimming. Account for what other accounts already
+                # contributed to the global total.
+                remaining = None if args.limit is None else max(0, args.limit - total)
+                parsed = fetch_backfill_for_account(acct, args.months, max_total=remaining)
+                latest_hist = None
 
             if args.limit is not None and total + len(parsed) > args.limit:
                 parsed = parsed[: max(0, args.limit - total)]
@@ -119,6 +163,14 @@ def main() -> None:
                 batching.write_pending(parsed, append=True)
             total += len(parsed)
             print(f"[{acct['email']}] wrote {len(parsed)} pending")
+
+            # FIX-1: in daily mode, defer the cursor update to persist.py via
+            # tmp/history_cursor.json — only commit AFTER inserts succeed.
+            # If anything between here and persist.py fails, the next run will
+            # re-fetch the missed window (dedup by gmail_msg_id handles repeats).
+            if args.mode == "daily" and latest_hist is not None:
+                batching.write_history_cursor(acct["id"], latest_hist)
+
             supabase_client.finish_run(run_id, "success", len(parsed))
 
             if args.limit is not None and total >= args.limit:

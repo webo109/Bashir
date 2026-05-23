@@ -17,7 +17,7 @@ export function Greeting({ emails }: { emails: EmailRow[] }) {
     }
   );
 
-  const summary = buildSummary(counts);
+  const summary = buildSummary(counts, period);
 
   return (
     <header className="mb-2">
@@ -39,7 +39,10 @@ export function Greeting({ emails }: { emails: EmailRow[] }) {
   );
 }
 
-function buildSummary(counts: Record<Category, number>): string {
+function buildSummary(
+  counts: Record<Category, number>,
+  period: "morning" | "afternoon" | "evening" = "morning"
+): string {
   const parts: string[] = [];
   const r = counts.reply_today;
   const o = counts.opportunities;
@@ -49,7 +52,8 @@ function buildSummary(counts: Record<Category, number>): string {
   const total = r + o + a + f + d;
 
   if (total === 0) {
-    return "Quiet morning. Bashir found nothing worth your attention.";
+    // NIT-2: use the actual greeting period instead of hard-coding "morning".
+    return `Quiet ${period}. Bashir found nothing worth your attention.`;
   }
 
   if (r > 0) {
