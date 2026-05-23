@@ -1,5 +1,6 @@
 import { getNoiseGenerators } from "@/lib/queries";
 import { UnsubButton } from "@/components/UnsubButton";
+import { ResubButton } from "@/components/ResubButton";
 
 export const dynamic = "force-dynamic";
 
@@ -92,6 +93,7 @@ export default async function SendersPage({
                 one_click={s.unsubscribe_one_click}
                 size="md"
               />
+              <ResubButton fromEmail={s.from_email} size="md" />
               <a
                 href={gmailSearch(s.from_email)}
                 target="_blank"
