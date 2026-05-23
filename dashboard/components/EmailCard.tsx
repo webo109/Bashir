@@ -45,13 +45,14 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
           </div>
         )}
       </a>
-      <div className="absolute top-2.5 right-2.5">
-        <UnsubButton
-          url={email.unsubscribe_url}
-          one_click={email.unsubscribe_one_click}
-          fallbackUrl={email.gmail_url}
-        />
-      </div>
+      {email.unsubscribe_url && (
+        <div className="absolute top-2.5 right-2.5">
+          <UnsubButton
+            url={email.unsubscribe_url}
+            one_click={email.unsubscribe_one_click}
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -7,8 +7,6 @@ type State = "idle" | "pending" | "ok" | "err";
 interface Props {
   url: string | null;
   one_click?: boolean;
-  /** Fallback link to open if there's no List-Unsubscribe URL — usually the Gmail message URL. */
-  fallbackUrl?: string | null;
   /** Visual size; corner-of-card vs row-of-buttons. */
   size?: "sm" | "md";
 }
@@ -16,27 +14,23 @@ interface Props {
 export function UnsubButton({
   url,
   one_click = false,
-  fallbackUrl = null,
   size = "sm",
 }: Props) {
   const [state, setState] = useState<State>("idle");
+
+  // No List-Unsubscribe header → render nothing. The user has other ways to
+  // handle these senders (Bulk-delete in Gmail link, native Gmail unsubscribe).
+  if (!url) return null;
 
   async function onClick(e: React.MouseEvent) {
     e.preventDefault();
     e.stopPropagation();
 
-    // No List-Unsubscribe header — open the Gmail message so user can find the
-    // footer "unsubscribe" link manually.
-    if (!url) {
-      if (fallbackUrl) window.open(fallbackUrl, "_blank", "noopener,noreferrer");
-      return;
-    }
-
     // Non-one-click — open the sender's page in a new tab. We don't fetch
     // server-side because most non-one-click URLs are confirmation pages
     // that shouldn't be "previewed" by Bashir.
     if (!one_click) {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(url!, "_blank", "noopener,noreferrer");
       return;
     }
 
@@ -62,15 +56,11 @@ export function UnsubButton({
       ? "✓ Unsubscribed"
       : state === "err"
       ? "Retry"
-      : !url
-      ? "Find in Gmail"
       : one_click
       ? "Unsubscribe"
       : "Unsubscribe ↗";
 
-  const tooltip = !url
-    ? "No List-Unsubscribe header — opens the message in Gmail (the footer usually has the link)"
-    : !one_click
+  const tooltip = !one_click
     ? "Opens the sender's unsubscribe page in a new tab"
     : "Sends a one-click unsubscribe to the sender (you stay here)";
 
@@ -84,8 +74,6 @@ export function UnsubButton({
       ? "bg-[#5C8A4F] text-white"
       : state === "err"
       ? "bg-[#C45A3D] text-white hover:bg-[#A84B33]"
-      : !url
-      ? "bg-[#F2EDE2] text-[#7A7066] hover:bg-[#ECE7DD]"
       : "bg-[#9C7847] text-white hover:bg-[#7A5A33]";
 
   return (

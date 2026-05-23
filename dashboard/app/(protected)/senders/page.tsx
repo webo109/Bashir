@@ -90,7 +90,6 @@ export default async function SendersPage({
               <UnsubButton
                 url={s.unsubscribe_url}
                 one_click={s.unsubscribe_one_click}
-                fallbackUrl={gmailSearch(s.from_email)}
                 size="md"
               />
               <a
