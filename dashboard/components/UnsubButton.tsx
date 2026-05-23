@@ -1,7 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { setSenderState } from "@/lib/sender-state";
+import { useEffect, useState } from "react";
+import {
+  getSenderState,
+  onSenderStateChange,
+  setSenderState,
+} from "@/lib/sender-state";
 
 type State = "idle" | "pending" | "ok" | "failed";
 
@@ -31,6 +35,23 @@ interface Props {
  */
 export function UnsubButton({ url, one_click = false, fromEmail = null, size = "sm" }: Props) {
   const [state, setState] = useState<State>("idle");
+
+  // After mount, restore "ok" state from localStorage so the button remembers
+  // the user already unsubscribed (badge persists across refresh; button
+  // visual should too). Also re-syncs across tabs / pages within the session.
+  useEffect(() => {
+    const sync = () => {
+      const persisted = getSenderState(fromEmail);
+      setState((cur) => {
+        if (cur === "pending") return cur;
+        if (persisted === "unsubscribed") return "ok";
+        if (persisted === "resubscribed") return "idle";
+        return cur;
+      });
+    };
+    sync();
+    return onSenderStateChange(sync);
+  }, [fromEmail]);
 
   if (!url) return null;
 
