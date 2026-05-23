@@ -42,6 +42,8 @@ Python does the deterministic glue: fetch from Gmail, write/read JSONL, persist 
 ### 1. Supabase
 Open the Supabase SQL editor for your project → New query → paste `sql/schema.sql` → Run. Confirm five tables exist: `accounts`, `emails`, `classifications`, `monthly_reports`, `run_log`.
 
+Also apply `sql/unsubscribe.sql` (V1.2 migration) if you want in-app unsubscribe support.
+
 ### 2. Google Cloud OAuth
 1. https://console.cloud.google.com → create project "Bashir".
 2. APIs & Services → Library → enable **Gmail API**.
@@ -73,14 +75,20 @@ Open this repo in Claude Code locally. Tell Claude:
 
 Claude will follow the steps in `CLAUDE.md` — loop over `python scripts/fetch.py backfill <email> --limit 50` → classify the batch → `python scripts/persist.py`, repeating until done. Runs on the Max subscription. Resumable — already-ingested emails are skipped.
 
-### 7. Tune the prompt
+### 7. Refresh unsubscribe metadata
+Once per backfill (and the daily routine handles this automatically going forward):
+```powershell
+python scripts/refresh_unsubscribe.py
+```
+
+### 8. Tune the prompt
 1. Expand `evals/cases.jsonl` to 30–50 hand-labeled examples (file ships with 5 to show the format).
 2. In Claude Code locally, ask Claude to classify the cases into `evals/_classifications.jsonl` per `prompts/triage.md`.
 3. `python evals/run.py` — prints a confusion matrix.
 4. Edit `prompts/triage.md` if accuracy on `reply_today` or `opportunities` < 85%, or archive leak > 5%.
 5. Bump the `version:` line in `prompts/triage.md` and `PROMPT_VERSION` in `.env` after meaningful changes.
 
-### 8. Schedule the routines
+### 9. Schedule the routines
 In Claude Code with this repo open:
 ```
 /schedule create
