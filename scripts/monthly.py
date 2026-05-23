@@ -28,6 +28,9 @@ from lib import supabase_client  # noqa: E402
 WINDOW_DAYS = 30
 NOISE_THRESHOLD = 0.80
 QUIET_DAYS = 14
+# FIX-9: quiet_conversations needs a longer lookback than the other metrics —
+# if Nova's last sent was 35 days ago, we still want to surface it.
+QUIET_LOOKBACK_DAYS = 90
 
 
 def _fetch_window(since_iso: str) -> list[dict[str, Any]]:
@@ -39,7 +42,33 @@ def _fetch_window(since_iso: str) -> list[dict[str, Any]]:
     while True:
         res = (
             client.table("emails")
-            .select("id, from_email, from_name, subject, received_at, thread_id, folder, classifications(category)")
+            .select("id, from_email, from_name, subject, received_at, thread_id, folder, classifications(category, classified_at)")
+            .gte("received_at", since_iso)
+            .range(page * page_size, page * page_size + page_size - 1)
+            .execute()
+        )
+        batch = res.data or []
+        rows.extend(batch)
+        if len(batch) < page_size:
+            break
+        page += 1
+    return rows
+
+
+def _fetch_quiet_window(since_iso: str) -> list[dict[str, Any]]:
+    """Same shape as _fetch_window but only fetches what quiet_conversations needs.
+
+    FIX-9: quiet_conversations looks back ~90 days; the rest of the report is
+    30 days. Keep this separate so the bulk fetch stays small.
+    """
+    client = supabase_client.client()
+    rows: list[dict[str, Any]] = []
+    page = 0
+    page_size = 1000
+    while True:
+        res = (
+            client.table("emails")
+            .select("thread_id, folder, received_at, subject")
             .gte("received_at", since_iso)
             .range(page * page_size, page * page_size + page_size - 1)
             .execute()
@@ -60,10 +89,14 @@ def build_report(year_month: str) -> dict[str, Any]:
     sent = [r for r in rows if r.get("folder") == "sent"]
 
     # Each email has a list of classifications (one per prompt_version).
-    # Use the most recent (any) for analytics.
+    # FIX-8: pick the newest by classified_at rather than the arbitrary first
+    # row Supabase happens to return.
     def category_of(row: dict) -> str | None:
-        cls = row.get("classifications") or []
-        return cls[0]["category"] if cls else None
+        cls = list(row.get("classifications") or [])
+        if not cls:
+            return None
+        cls.sort(key=lambda c: c.get("classified_at") or "", reverse=True)
+        return cls[0].get("category")
 
     # 1. top senders by volume (inbox)
     sender_counter: Counter[str] = Counter()
@@ -122,15 +155,19 @@ def build_report(year_month: str) -> dict[str, Any]:
                 pass
 
     # 5. quiet conversations: thread_ids where the LAST message is Nova's (sent),
-    #    older than QUIET_DAYS, and there's no newer inbound on that thread.
-    threads_by_id: dict[str, list[dict]] = defaultdict(list)
-    for r in rows:
+    #    between QUIET_DAYS and QUIET_LOOKBACK_DAYS old, and no newer inbound exists.
+    # FIX-9: use a wider 90-day window than the 30-day report window so that a
+    # thread Nova last replied to 35+ days ago still surfaces.
+    quiet_since = datetime.now(timezone.utc) - timedelta(days=QUIET_LOOKBACK_DAYS)
+    quiet_rows = _fetch_quiet_window(quiet_since.isoformat())
+    quiet_threads: dict[str, list[dict]] = defaultdict(list)
+    for r in quiet_rows:
         if r.get("thread_id"):
-            threads_by_id[r["thread_id"]].append(r)
+            quiet_threads[r["thread_id"]].append(r)
 
     quiet = []
     cutoff = datetime.now(timezone.utc) - timedelta(days=QUIET_DAYS)
-    for tid, msgs in threads_by_id.items():
+    for tid, msgs in quiet_threads.items():
         msgs.sort(key=lambda m: m.get("received_at") or "")
         last = msgs[-1]
         if last.get("folder") != "sent":
@@ -152,6 +189,12 @@ def build_report(year_month: str) -> dict[str, Any]:
             )
     quiet.sort(key=lambda x: x["days_quiet"], reverse=True)
 
+    # Other metrics still use the 30-day window via `rows`/`threads_by_id`.
+    threads_by_id: dict[str, list[dict]] = defaultdict(list)
+    for r in rows:
+        if r.get("thread_id"):
+            threads_by_id[r["thread_id"]].append(r)
+
     # 6. never replied (inbox threads with no sent reply)
     sent_thread_ids = {r["thread_id"] for r in sent if r.get("thread_id")}
     never_replied = []
@@ -172,6 +215,8 @@ def build_report(year_month: str) -> dict[str, Any]:
         )
 
     return {
+        # NIT-6: self-describing payload — month identifier is now inline.
+        "year_month": year_month,
         "window_days": WINDOW_DAYS,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "totals": {
