@@ -132,3 +132,68 @@ def upsert_monthly_report(year_month: str, payload: dict[str, Any]) -> None:
         {"year_month": year_month, "json_payload": payload},
         on_conflict="year_month",
     ).execute()
+
+
+# --- sender_unsubscribe ----------------------------------------------------
+
+def upsert_sender_unsubscribe(
+    from_email: str,
+    url: str | None,
+    one_click: bool,
+    source_msg_id: str | None,
+) -> None:
+    from datetime import datetime, timezone
+    client().table("sender_unsubscribe").upsert(
+        {
+            "from_email": from_email,
+            "unsubscribe_url": url,
+            "one_click": one_click,
+            "source_msg_id": source_msg_id,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        },
+        on_conflict="from_email",
+    ).execute()
+
+
+def get_senders_needing_unsubscribe_refresh(stale_days: int = 30) -> list[tuple[str, str]]:
+    """Return (from_email, sample_gmail_msg_id) for senders that need (re-)fetching.
+
+    A sender qualifies if:
+      - it appears in emails (inbox folder) AND
+      - it has NO row in sender_unsubscribe, OR its row is older than stale_days
+
+    Returns a sample message ID per sender (most recent inbox message).
+    """
+    from datetime import datetime, timedelta, timezone
+
+    db = client()
+    # Senders with existing rows + their updated_at.
+    existing = db.table("sender_unsubscribe").select("from_email,updated_at").execute().data or []
+    cutoff = datetime.now(timezone.utc) - timedelta(days=stale_days)
+    fresh = {
+        r["from_email"]
+        for r in existing
+        if r.get("updated_at") and datetime.fromisoformat(r["updated_at"].replace("Z", "+00:00")) > cutoff
+    }
+
+    # Pull distinct senders with their most recent inbox message id.
+    # Supabase has no DISTINCT — fetch a wide query and reduce in Python.
+    rows = (
+        db.table("emails")
+        .select("from_email, gmail_msg_id, received_at")
+        .eq("folder", "inbox")
+        .order("received_at", desc=True)
+        .limit(5000)
+        .execute()
+        .data
+        or []
+    )
+    seen: dict[str, str] = {}
+    for r in rows:
+        addr = (r.get("from_email") or "").lower()
+        if not addr or addr in seen:
+            continue
+        if addr in fresh:
+            continue
+        seen[addr] = r["gmail_msg_id"]
+    return list(seen.items())
