@@ -32,3 +32,4 @@ scratch/
 tmp/
 evals/_*.jsonl
 .superpowers/
+.claude/
