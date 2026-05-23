@@ -1,0 +1,30 @@
+# Secrets
+.env
+.env.local
+credentials.json
+token.json
+*.token
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Editor / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Dashboard build artifacts (added in Phase 5)
+dashboard/.next/
+dashboard/out/
+dashboard/.vercel
+dashboard/node_modules/
+
+# Logs / scratch
+*.log
+scratch/
