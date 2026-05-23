@@ -39,7 +39,7 @@ def write_pending(messages: list[dict[str, Any]], append: bool = False) -> int:
 def read_pending() -> list[dict[str, Any]]:
     if not config.PENDING_PATH.exists():
         return []
-    return [json.loads(line) for line in config.PENDING_PATH.read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [json.loads(line) for line in config.PENDING_PATH.read_text(encoding="utf-8").split("\n") if line.strip()]
 
 
 def clear_handoff() -> None:
@@ -72,7 +72,7 @@ def read_classifications() -> dict[str, dict[str, Any]]:
     if not config.CLASSIFICATIONS_PATH.exists():
         return {}
     out: dict[str, dict[str, Any]] = {}
-    for line in config.CLASSIFICATIONS_PATH.read_text(encoding="utf-8").splitlines():
+    for line in config.CLASSIFICATIONS_PATH.read_text(encoding="utf-8").split("\n"):
         line = line.strip()
         if not line:
             continue

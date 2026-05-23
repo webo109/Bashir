@@ -42,6 +42,22 @@ def main() -> None:
     }
 
     flow = InstalledAppFlow.from_client_config(client_config, scopes=gmail.GMAIL_SCOPES)
+
+    # Print the auth URL up front so the user always has a clickable link,
+    # even if the browser doesn't auto-launch (e.g. running from a non-
+    # interactive shell).
+    auth_url, _ = flow.authorization_url(access_type="offline", prompt="consent")
+    print()
+    print("=" * 70)
+    print("OPEN THIS URL IN A BROWSER (signed in as the inbox you want to authorize):")
+    print()
+    print(auth_url)
+    print()
+    print("After clicking 'Allow', you'll land on a localhost page — that's the")
+    print("script catching the callback. This terminal will then print 'Authorized'.")
+    print("=" * 70)
+    print(flush=True)
+
     # access_type=offline + prompt=consent forces a refresh token.
     creds = flow.run_local_server(
         host="localhost",
