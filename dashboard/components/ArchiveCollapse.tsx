@@ -18,7 +18,7 @@ export function ArchiveCollapse({ emails }: { emails: EmailRow[] }) {
       {open && (
         <ul className="mt-3 flex flex-col gap-1.5">
           {emails.map((e) => (
-            <li key={e.id} className="text-[12px] text-[#7A7066] truncate">
+            <li key={e.id} className="text-[12px] text-[#7A7066] truncate fade-up">
               <a
                 href={e.gmail_url ?? "#"}
                 target="_blank"

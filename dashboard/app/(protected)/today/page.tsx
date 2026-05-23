@@ -11,7 +11,7 @@ export default async function TodayPage() {
   let emails;
   try {
     emails = await getTodayEmails();
-  } catch (e) {
+  } catch {
     return (
       <div className="text-center py-16">
         <p className="text-[#7A7066]">Bashir is offline. Try again in a minute.</p>

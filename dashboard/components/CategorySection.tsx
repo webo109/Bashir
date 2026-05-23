@@ -25,8 +25,10 @@ export function CategorySection({
         </div>
       </div>
       <div className="flex flex-col gap-2">
-        {emails.map((e) => (
-          <EmailCard key={e.id} email={e} />
+        {emails.map((e, i) => (
+          <div key={e.id} className="fade-up" style={{ animationDelay: `${i * 50}ms` }}>
+            <EmailCard email={e} />
+          </div>
         ))}
       </div>
     </section>

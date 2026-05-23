@@ -1,5 +1,5 @@
 import type { EmailRow } from "@/lib/types";
-import { CATEGORY_COLOR, CATEGORY_LABEL } from "@/lib/types";
+import { CATEGORY_COLOR } from "@/lib/types";
 import { relativeTime } from "@/lib/time";
 
 export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot?: boolean }) {
