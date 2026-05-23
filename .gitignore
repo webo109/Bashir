@@ -30,3 +30,4 @@ dashboard/node_modules/
 scratch/
 tmp/
 evals/_*.jsonl
+.superpowers/
