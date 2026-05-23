@@ -88,11 +88,14 @@ async function hydrateUnsubscribe(rows: EmailRow[]): Promise<EmailRow[]> {
   });
 }
 
-// Nested select tries to order + limit classifications server-side (FIX-7).
-// supabase-js v2 doesn't always honor `.order()` inside a relational embed,
-// so `flatten()` still re-sorts client-side as a safety net.
+// FIX-7 follow-up: the previous attempt embedded `order=...,limit=1` inside
+// the nested select column list. That is NOT valid PostgREST syntax (those
+// belong in URL params like `classifications.order=...` and `.limit()` only
+// applies to the parent query in supabase-js v2). We rely on `flatten()` to
+// take the newest classification client-side. Over-fetch is bounded in
+// practice because emails rarely have more than 1-2 classifications.
 const EMAIL_WITH_LATEST_CLASS_SELECT =
-  "id, gmail_msg_id, account_id, from_name, from_email, subject, snippet, body, received_at, gmail_url, folder, accounts(email), classifications(category, summary, why_priority, classified_at, order=classified_at.desc, limit=1)";
+  "id, gmail_msg_id, account_id, from_name, from_email, subject, snippet, body, received_at, gmail_url, folder, accounts(email), classifications(category, summary, why_priority, classified_at)";
 
 export async function getTodayEmails(): Promise<EmailRow[]> {
   const since = muscatTodayStart();
