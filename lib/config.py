@@ -32,6 +32,9 @@ PROMPT_PATH = ROOT / "prompts" / "triage.md"
 TMP_DIR = ROOT / "tmp"
 PENDING_PATH = TMP_DIR / "pending.jsonl"
 CLASSIFICATIONS_PATH = TMP_DIR / "classifications.jsonl"
+# Sidecar: per-account history cursors written by fetch.py (daily mode) and
+# committed to the DB by persist.py only AFTER inserts succeed. See FIX-1.
+HISTORY_CURSOR_PATH = TMP_DIR / "history_cursor.json"
 
 
 def require(name: str, value: str) -> str:

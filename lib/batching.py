@@ -43,9 +43,47 @@ def read_pending() -> list[dict[str, Any]]:
 
 
 def clear_handoff() -> None:
-    for p in (config.PENDING_PATH, config.CLASSIFICATIONS_PATH):
+    for p in (config.PENDING_PATH, config.CLASSIFICATIONS_PATH, config.HISTORY_CURSOR_PATH):
         if p.exists():
             p.unlink()
+
+
+# --- history cursor sidecar (fetch writes, persist commits) ----------------
+
+def write_history_cursor(account_id: int, history_id: str) -> None:
+    """Append/replace a per-account history cursor to be committed by persist.py.
+
+    fetch.py (daily mode) calls this AFTER successfully writing pending.jsonl
+    but BEFORE persist runs. persist.py commits these to the `accounts.last_history_id`
+    column only after its inserts succeed (FIX-1: prevents data loss on partial failure).
+    """
+    config.TMP_DIR.mkdir(parents=True, exist_ok=True)
+    current: dict[str, str] = {}
+    if config.HISTORY_CURSOR_PATH.exists():
+        try:
+            current = json.loads(config.HISTORY_CURSOR_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            current = {}
+    current[str(account_id)] = history_id
+    config.HISTORY_CURSOR_PATH.write_text(
+        json.dumps(current, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+
+
+def read_history_cursors() -> dict[int, str]:
+    """Return {account_id: history_id} from the sidecar, or {} if missing."""
+    if not config.HISTORY_CURSOR_PATH.exists():
+        return {}
+    try:
+        raw = json.loads(config.HISTORY_CURSOR_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    return {int(k): v for k, v in raw.items()}
+
+
+def clear_history_cursor() -> None:
+    if config.HISTORY_CURSOR_PATH.exists():
+        config.HISTORY_CURSOR_PATH.unlink()
 
 
 def _pending_record(m: dict[str, Any]) -> dict[str, Any]:

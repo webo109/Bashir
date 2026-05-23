@@ -58,6 +58,19 @@ def main() -> None:
 
     print(f"Persisted {total_persisted} email(s).")
 
+    # FIX-1: only NOW that inserts succeeded do we advance the per-account
+    # `last_history_id` cursor. If the script raised mid-loop we never got here,
+    # so the next fetch.py daily run will replay the same Gmail history window
+    # and rely on UNIQUE(gmail_msg_id) to dedup the messages we already wrote.
+    cursors = batching.read_history_cursors()
+    for account_id, history_id in cursors.items():
+        try:
+            supabase_client.update_history_id(account_id, history_id)
+        except Exception as e:
+            print(f"WARNING: failed to advance history cursor for account {account_id}: {e}")
+    if cursors:
+        print(f"Advanced history cursor for {len(cursors)} account(s).")
+
     if nudge_payload:
         sent = notifier.send_reply_today_nudge(nudge_payload)
         print(f"reply_today: {len(nudge_payload)} item(s). nudge sent={sent}")
