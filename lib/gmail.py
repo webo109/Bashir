@@ -209,3 +209,36 @@ def send_email(service, to: str, subject: str, body: str) -> None:
     msg["subject"] = subject
     encoded = base64.urlsafe_b64encode(msg.as_bytes()).decode()
     service.users().messages().send(userId="me", body={"raw": encoded}).execute()
+
+
+def get_unsubscribe_header(service, gmail_msg_id: str) -> tuple[str | None, bool]:
+    """Return (preferred_url, supports_one_click) from List-Unsubscribe headers.
+
+    Prefers https over mailto. URL is None if neither header is set.
+    one_click=True iff List-Unsubscribe-Post contains 'List-Unsubscribe=One-Click' (RFC 8058).
+    """
+    import re as _re
+    try:
+        msg = (
+            service.users()
+            .messages()
+            .get(
+                userId="me",
+                id=gmail_msg_id,
+                format="metadata",
+                metadataHeaders=["List-Unsubscribe", "List-Unsubscribe-Post"],
+            )
+            .execute()
+        )
+    except HttpError:
+        return None, False
+    headers = {h["name"].lower(): h["value"] for h in msg.get("payload", {}).get("headers", [])}
+    raw = headers.get("list-unsubscribe", "")
+    post = headers.get("list-unsubscribe-post", "")
+    one_click = "List-Unsubscribe=One-Click" in post
+
+    urls = _re.findall(r"<([^>]+)>", raw)
+    https = [u for u in urls if u.startswith("http")]
+    mailto = [u for u in urls if u.startswith("mailto:")]
+    chosen = (https + mailto)[0] if (https or mailto) else None
+    return chosen, one_click

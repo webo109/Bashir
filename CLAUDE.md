@@ -22,7 +22,8 @@ Steps:
    ```
    For `archive`, `summary` and `why_priority` may be `null`.
 4. Run `python scripts/persist.py`.
-5. Report: total emails, count per category, whether the reply_today nudge was sent.
+5. Run `python scripts/refresh_unsubscribe.py --new-senders-only` to enrich any newly-seen senders with List-Unsubscribe URLs (fast — only touches senders without a row yet).
+6. Report: total emails, count per category, whether the reply_today nudge was sent.
 
 ## Monthly routine
 > Triggered by Claude Code Routine on the 1st at 08:00 Muscat / 04:00 UTC.

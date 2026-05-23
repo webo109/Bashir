@@ -45,4 +45,16 @@ export interface EmailRow {
   category: Category | null;
   summary: string | null;
   why_priority: string | null;
+  unsubscribe_url: string | null;
+  unsubscribe_one_click: boolean;
+}
+
+export interface SenderStats {
+  from_email: string;
+  from_name: string | null;
+  total: number;
+  archive_count: number;
+  archive_pct: number;
+  unsubscribe_url: string | null;
+  unsubscribe_one_click: boolean;
 }

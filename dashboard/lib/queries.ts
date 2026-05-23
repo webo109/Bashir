@@ -1,6 +1,6 @@
 import { supabase } from "./supabase";
 import { muscatTodayStart } from "./time";
-import type { Category, EmailRow } from "./types";
+import type { Category, EmailRow, SenderStats } from "./types";
 
 interface RawRow {
   id: number;
@@ -46,7 +46,23 @@ function flatten(row: RawRow): EmailRow {
     category: top?.category ?? null,
     summary: top?.summary ?? null,
     why_priority: top?.why_priority ?? null,
+    unsubscribe_url: null,
+    unsubscribe_one_click: false,
   };
+}
+
+async function hydrateUnsubscribe(rows: EmailRow[]): Promise<EmailRow[]> {
+  const emails = Array.from(new Set(rows.map(r => r.from_email).filter(Boolean))) as string[];
+  if (!emails.length) return rows;
+  const { data } = await supabase()
+    .from("sender_unsubscribe")
+    .select("from_email, unsubscribe_url, one_click")
+    .in("from_email", emails);
+  const map = new Map((data || []).map(r => [r.from_email, r]));
+  return rows.map(r => {
+    const m = r.from_email ? map.get(r.from_email) : undefined;
+    return { ...r, unsubscribe_url: m?.unsubscribe_url ?? null, unsubscribe_one_click: m?.one_click ?? false };
+  });
 }
 
 export async function getTodayEmails(): Promise<EmailRow[]> {
@@ -60,7 +76,8 @@ export async function getTodayEmails(): Promise<EmailRow[]> {
     .eq("folder", "inbox")
     .order("received_at", { ascending: false });
   if (error) throw error;
-  return (data as unknown as RawRow[]).map(flatten);
+  const rows = (data as unknown as RawRow[]).map(flatten);
+  return await hydrateUnsubscribe(rows);
 }
 
 export interface ArchiveQuery {
@@ -114,7 +131,7 @@ export async function searchArchive(
   }
 
   const hasMore = filtered.length > pageSize;
-  return { rows: filtered.slice(0, pageSize), hasMore };
+  return { rows: await hydrateUnsubscribe(filtered.slice(0, pageSize)), hasMore };
 }
 
 export async function getAccounts(): Promise<Array<{ id: number; email: string }>> {
@@ -124,4 +141,70 @@ export async function getAccounts(): Promise<Array<{ id: number; email: string }
     .order("email");
   if (error) throw error;
   return data ?? [];
+}
+
+export async function getNoiseGenerators(opts: {
+  minCount?: number;
+  archiveThreshold?: number;
+  limit?: number;
+} = {}): Promise<SenderStats[]> {
+  const minCount = opts.minCount ?? 3;
+  const archiveThreshold = opts.archiveThreshold ?? 1.0;
+  const limit = opts.limit ?? 50;
+
+  // Pull inbox emails with their classification. Iterate pages until done.
+  const pageSize = 1000;
+  let page = 0;
+  const stats = new Map<string, { name: string | null; total: number; archive: number }>();
+  for (;;) {
+    const { data, error } = await supabase()
+      .from("emails")
+      .select("from_email, from_name, classifications(category)")
+      .eq("folder", "inbox")
+      .range(page * pageSize, page * pageSize + pageSize - 1);
+    if (error) throw error;
+    type NoiseRow = { from_email: string | null; from_name: string | null; classifications: Array<{ category: string }> | null };
+    const batch = (data as unknown as NoiseRow[]) || [];
+    if (!batch.length) break;
+    for (const r of batch) {
+      const addr = (r.from_email || "").toLowerCase();
+      if (!addr) continue;
+      const cls = (r.classifications || []) as Array<{ category: string }>;
+      const cat = cls[0]?.category;
+      const cur = stats.get(addr) ?? { name: r.from_name ?? null, total: 0, archive: 0 };
+      cur.total++;
+      if (cat === "archive") cur.archive++;
+      stats.set(addr, cur);
+    }
+    if (batch.length < pageSize) break;
+    page++;
+  }
+
+  // Filter + sort.
+  const filtered: Array<{ addr: string; name: string | null; total: number; archive: number }> = [];
+  Array.from(stats.entries()).forEach(([addr, s]) => {
+    if (s.total < minCount) return;
+    if (s.archive / s.total < archiveThreshold) return;
+    filtered.push({ addr, ...s });
+  });
+  filtered.sort((a, b) => b.total - a.total);
+  const top = filtered.slice(0, limit);
+
+  // Hydrate unsubscribe URLs in one query.
+  const addrs = top.map(t => t.addr);
+  const { data: unsubRows } = await supabase()
+    .from("sender_unsubscribe")
+    .select("from_email, unsubscribe_url, one_click")
+    .in("from_email", addrs);
+  const unsubMap = new Map((unsubRows || []).map(r => [r.from_email, r]));
+
+  return top.map(t => ({
+    from_email: t.addr,
+    from_name: t.name,
+    total: t.total,
+    archive_count: t.archive,
+    archive_pct: t.archive / t.total,
+    unsubscribe_url: unsubMap.get(t.addr)?.unsubscribe_url ?? null,
+    unsubscribe_one_click: unsubMap.get(t.addr)?.one_click ?? false,
+  }));
 }
