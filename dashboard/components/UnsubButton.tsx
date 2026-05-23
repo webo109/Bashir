@@ -58,15 +58,16 @@ export function UnsubButton({ url, one_click = false, fromEmail = null, size = "
     );
   }
 
-  if (state === "ok") {
-    return (
-      <span className={`${base} ${sizing} bg-[#5C8A4F] text-white`}>
-        ✓ Unsubscribed
-      </span>
-    );
-  }
-
-  if (state === "failed") {
+  // After a one-click attempt — success or failure — render the same copper
+  // anchor pointing at the sender's URL. Labels differ but the visual is
+  // identical (matches the "non-one-click" anchor too). Status badge on
+  // /senders shows whether the unsubscribe was actually applied.
+  if (state === "ok" || state === "failed") {
+    const label = state === "ok" ? "✓ Unsubscribed ↗" : "Open page ↗";
+    const tooltip =
+      state === "ok"
+        ? "Bashir submitted the unsubscribe. Tap to open the sender's page if you want to confirm."
+        : `One-click unsubscribe was rejected — open ${url} to confirm manually`;
     return (
       <a
         href={url}
@@ -76,10 +77,10 @@ export function UnsubButton({ url, one_click = false, fromEmail = null, size = "
           e.stopPropagation();
           setSenderState(fromEmail, "unsubscribed");
         }}
-        title={`One-click unsubscribe was rejected — open ${url} to confirm manually`}
+        title={tooltip}
         className={`${base} ${sizing} bg-[#9C7847] text-white hover:bg-[#7A5A33]`}
       >
-        Open page ↗
+        {label}
       </a>
     );
   }
