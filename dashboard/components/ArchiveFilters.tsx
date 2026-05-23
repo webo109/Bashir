@@ -1,5 +1,6 @@
 "use client";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   CATEGORY_COLOR,
   CATEGORY_LABEL,
@@ -20,36 +21,41 @@ export function ArchiveFilters({
 }: {
   accounts: Array<{ id: number; email: string }>;
 }) {
-  const router = useRouter();
   const params = useSearchParams();
 
-  function toggleArray(key: string, value: string) {
+  function urlFor(mutator: (p: URLSearchParams) => void): string {
     const p = new URLSearchParams(Array.from(params.entries()));
-    const cur = (p.get(key) ?? "").split(",").filter(Boolean);
-    const next = cur.includes(value)
-      ? cur.filter((v) => v !== value)
-      : [...cur, value];
-    if (next.length) p.set(key, next.join(","));
-    else p.delete(key);
+    mutator(p);
     p.delete("page");
-    router.replace(`/archive?${p.toString()}`);
+    const qs = p.toString();
+    return qs ? `/archive?${qs}` : "/archive";
   }
-  function setRange(value: string) {
-    const p = new URLSearchParams(Array.from(params.entries()));
-    p.set("range", value);
-    p.delete("page");
-    router.replace(`/archive?${p.toString()}`);
+
+  function toggleArrayUrl(key: string, value: string): string {
+    return urlFor((p) => {
+      const cur = (p.get(key) ?? "").split(",").filter(Boolean);
+      const next = cur.includes(value)
+        ? cur.filter((v) => v !== value)
+        : [...cur, value];
+      if (next.length) p.set(key, next.join(","));
+      else p.delete(key);
+    });
+  }
+
+  function rangeUrl(value: string): string {
+    return urlFor((p) => p.set("range", value));
   }
 
   const selectedCats = (params.get("cat") ?? "").split(",").filter(Boolean);
   const selectedAccts = (params.get("acct") ?? "").split(",").filter(Boolean);
   const range = params.get("range") ?? "30d";
 
-  function chip(active: boolean, onClick: () => void, label: React.ReactNode, color?: string) {
+  function chip(active: boolean, href: string, label: React.ReactNode, color?: string, key?: string) {
     return (
-      <button
-        type="button"
-        onClick={onClick}
+      <Link
+        key={key}
+        href={href}
+        scroll={false}
         className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition-colors ${
           active
             ? "bg-[#1A1614] text-[#FBFAF7] border-[#1A1614]"
@@ -63,7 +69,7 @@ export function ArchiveFilters({
           />
         )}
         {label}
-      </button>
+      </Link>
     );
   }
 
@@ -73,9 +79,10 @@ export function ArchiveFilters({
         {CATEGORY_ORDER.map((c) =>
           chip(
             selectedCats.includes(c),
-            () => toggleArray("cat", c),
+            toggleArrayUrl("cat", c),
             CATEGORY_LABEL[c],
-            CATEGORY_COLOR[c as Category]
+            CATEGORY_COLOR[c as Category],
+            c,
           )
         )}
       </div>
@@ -83,14 +90,16 @@ export function ArchiveFilters({
         {accounts.map((a) =>
           chip(
             selectedAccts.includes(String(a.id)),
-            () => toggleArray("acct", String(a.id)),
-            a.email
+            toggleArrayUrl("acct", String(a.id)),
+            a.email,
+            undefined,
+            `acct-${a.id}`,
           )
         )}
       </div>
       <div className="flex gap-1.5">
         {RANGES.map((r) =>
-          chip(range === r.key, () => setRange(r.key), r.label)
+          chip(range === r.key, rangeUrl(r.key), r.label, undefined, `range-${r.key}`)
         )}
       </div>
     </div>
