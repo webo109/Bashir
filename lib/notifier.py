@@ -27,7 +27,8 @@ def send_reply_today_nudge(reply_today_emails: list[dict[str, Any]]) -> bool:
             return False
         sender = accounts[0]
 
-    service = gmail.build_service(sender["oauth_refresh_token"])
+    # FIX-6: only the notifier needs send scope; all other callers default to readonly.
+    service = gmail.build_service(sender["oauth_refresh_token"], scopes=gmail.GMAIL_SEND_SCOPES)
 
     lines = [
         f"Bashir here. {len(reply_today_emails)} email(s) need your reply today:",

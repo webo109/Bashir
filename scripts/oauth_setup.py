@@ -31,6 +31,15 @@ def main() -> None:
     config.require("GOOGLE_CLIENT_ID", config.GOOGLE_CLIENT_ID)
     config.require("GOOGLE_CLIENT_SECRET", config.GOOGLE_CLIENT_SECRET)
 
+    # FIX-6: only the notifier sender needs gmail.send. Ask once so the
+    # consent screen requests the right set of scopes.
+    is_sender = input(
+        "Is this account the notifier sender (NOTIFY_FROM_EMAIL)? "
+        "It will be the From: of daily nudge emails. (y/N): "
+    ).strip().lower() in ("y", "yes")
+    scopes = gmail.GMAIL_SEND_SCOPES if is_sender else gmail.GMAIL_READONLY_SCOPES
+    print(f"Requesting scopes: {scopes}")
+
     client_config = {
         "installed": {
             "client_id": config.GOOGLE_CLIENT_ID,
@@ -41,7 +50,7 @@ def main() -> None:
         }
     }
 
-    flow = InstalledAppFlow.from_client_config(client_config, scopes=gmail.GMAIL_SCOPES)
+    flow = InstalledAppFlow.from_client_config(client_config, scopes=scopes)
 
     # Print the auth URL up front so the user always has a clickable link,
     # even if the browser doesn't auto-launch (e.g. running from a non-

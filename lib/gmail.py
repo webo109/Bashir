@@ -10,6 +10,7 @@ shaped like Bashir's prompt + DB schema expect.
 from __future__ import annotations
 
 import base64
+import re
 from datetime import datetime, timezone
 from email.utils import parseaddr
 from typing import Any, Iterator
@@ -22,20 +23,36 @@ from googleapiclient.errors import HttpError
 from . import config
 
 
-GMAIL_SCOPES = [
+# FIX-6: split scopes. Most accounts only need readonly. Only the notifier
+# sender (NOTIFY_FROM_EMAIL) needs send. Existing refresh tokens authorized
+# with the legacy combined scope keep working (Google preserves the granted
+# scopes on the refresh token); new accounts get the tighter scope set.
+GMAIL_READONLY_SCOPES = [
     "https://www.googleapis.com/auth/gmail.readonly",
-    "https://www.googleapis.com/auth/gmail.send",  # for notifier nudges
 ]
+GMAIL_SEND_SCOPES = [
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.send",
+]
+# Backward-compat alias used by scripts/oauth_setup.py legacy code paths.
+GMAIL_SCOPES = GMAIL_SEND_SCOPES
 
 
-def build_service(refresh_token: str):
+def build_service(refresh_token: str, scopes: list[str] | None = None):
+    """Build an authenticated Gmail service.
+
+    `scopes` defaults to readonly. Callers that need to send (only the
+    notifier) must pass GMAIL_SEND_SCOPES. The scopes passed here are
+    advisory only — Google enforces the actual granted scopes from the
+    refresh token; this just tells the credentials object what to claim.
+    """
     creds = Credentials(
         token=None,
         refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=config.GOOGLE_CLIENT_ID,
         client_secret=config.GOOGLE_CLIENT_SECRET,
-        scopes=GMAIL_SCOPES,
+        scopes=scopes or GMAIL_READONLY_SCOPES,
     )
     creds.refresh(GoogleRequest())
     return build("gmail", "v1", credentials=creds, cache_discovery=False)
@@ -190,8 +207,6 @@ def _walk(part: dict[str, Any], wanted_mime: str) -> str | None:
 
 
 def _strip_html(html: str) -> str:
-    import re
-
     text = re.sub(r"<script.*?</script>", "", html, flags=re.S | re.I)
     text = re.sub(r"<style.*?</style>", "", text, flags=re.S | re.I)
     text = re.sub(r"<[^>]+>", " ", text)
@@ -217,7 +232,6 @@ def get_unsubscribe_header(service, gmail_msg_id: str) -> tuple[str | None, bool
     Prefers https over mailto. URL is None if neither header is set.
     one_click=True iff List-Unsubscribe-Post contains 'List-Unsubscribe=One-Click' (RFC 8058).
     """
-    import re as _re
     try:
         msg = (
             service.users()
@@ -237,7 +251,7 @@ def get_unsubscribe_header(service, gmail_msg_id: str) -> tuple[str | None, bool
     post = headers.get("list-unsubscribe-post", "")
     one_click = "List-Unsubscribe=One-Click" in post
 
-    urls = _re.findall(r"<([^>]+)>", raw)
+    urls = re.findall(r"<([^>]+)>", raw)
     https = [u for u in urls if u.startswith("http")]
     mailto = [u for u in urls if u.startswith("mailto:")]
     chosen = (https + mailto)[0] if (https or mailto) else None
