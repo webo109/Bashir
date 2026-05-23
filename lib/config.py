@@ -9,10 +9,6 @@ from dotenv import load_dotenv
 ROOT = Path(__file__).resolve().parent.parent
 load_dotenv(ROOT / ".env")
 
-# Anthropic
-ANTHROPIC_API_KEY = os.environ["ANTHROPIC_API_KEY"] if os.environ.get("ANTHROPIC_API_KEY") else None
-CLASSIFIER_MODEL = os.environ.get("CLASSIFIER_MODEL", "claude-sonnet-4-6")
-
 # Supabase
 SUPABASE_URL = os.environ.get("SUPABASE_URL", "")
 SUPABASE_SECRET_KEY = os.environ.get("SUPABASE_SECRET_KEY", "")
@@ -31,6 +27,11 @@ NOTIFY_FROM_EMAIL = os.environ.get("NOTIFY_FROM_EMAIL", "")
 # Prompt
 PROMPT_VERSION = os.environ.get("PROMPT_VERSION", "1.0")
 PROMPT_PATH = ROOT / "prompts" / "triage.md"
+
+# Shared scratch dir for the fetch → classify → persist handoff.
+TMP_DIR = ROOT / "tmp"
+PENDING_PATH = TMP_DIR / "pending.jsonl"
+CLASSIFICATIONS_PATH = TMP_DIR / "classifications.jsonl"
 
 
 def require(name: str, value: str) -> str:

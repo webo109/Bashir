@@ -1,14 +1,18 @@
-"""Run Bashir on a labeled set of emails and print a confusion matrix.
+"""Evaluate Bashir's classification accuracy.
 
-Run before/after any prompts/triage.md change.
+Two scripts, one workflow — same fetch → classify → persist split as the
+real pipeline, but the "fetch" is `cases.jsonl` and the "persist" is a
+confusion matrix print:
 
-    python evals/run.py
+    python evals/prepare.py    # writes evals/_pending.jsonl from cases.jsonl
+    # (Claude classifies it into evals/_classifications.jsonl)
+    python evals/run.py        # reads both, prints confusion matrix
 
-`evals/cases.jsonl` is the labeled corpus. Each line:
+`evals/cases.jsonl` lines:
     {gmail_msg_id, from_name, from_email, subject, snippet, body,
      received_at, account_email, expected_category}
 
-Target: ≥85% accuracy on `reply_today` and `opportunities`,
+Target: ≥85% accuracy on `reply_today` and `opportunities`;
         ≤5% leak from `archive` into any other category.
 """
 from __future__ import annotations
@@ -21,7 +25,6 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
-from lib import classifier  # noqa: E402
 
 CATEGORIES = [
     "reply_today",
@@ -31,28 +34,40 @@ CATEGORIES = [
     "archive",
 ]
 
+CASES_PATH = ROOT / "evals" / "cases.jsonl"
+PRED_PATH = ROOT / "evals" / "_classifications.jsonl"
 
-def load_cases(path: Path) -> list[dict]:
-    cases = []
+
+def load_jsonl(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    out = []
     for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        cases.append(json.loads(line))
-    return cases
+        out.append(json.loads(line))
+    return out
 
 
 def main() -> None:
-    cases = load_cases(ROOT / "evals" / "cases.jsonl")
+    cases = load_jsonl(CASES_PATH)
     if not cases:
-        print("evals/cases.jsonl is empty. Add labeled examples first.")
+        print(f"{CASES_PATH} is empty. Add labeled examples first.")
         sys.exit(1)
 
-    print(f"Running Bashir on {len(cases)} cases…")
-    results = classifier.classify_batch(cases)
-    by_id = {r["gmail_msg_id"]: r for r in results}
+    preds = load_jsonl(PRED_PATH)
+    if not preds:
+        print(f"{PRED_PATH} not found.")
+        print("Ask Claude (locally via Claude Code, or in a routine) to read")
+        print(f"  {CASES_PATH}")
+        print(f"and write classifications to")
+        print(f"  {PRED_PATH}")
+        print("per the rules in prompts/triage.md. Then rerun this script.")
+        sys.exit(1)
 
-    # Confusion: matrix[expected][predicted] = count
+    by_id = {p.get("gmail_msg_id") or p.get("id"): p for p in preds}
+
     matrix: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
     misses: list[dict] = []
     correct = 0
@@ -75,7 +90,6 @@ def main() -> None:
     print(f"Accuracy: {correct}/{len(cases)} ({100*correct/len(cases):.1f}%)")
     print()
 
-    # Print matrix
     cols = CATEGORIES + (["MISSING"] if any("MISSING" in r for r in matrix.values()) else [])
     header = "expected ↓ / predicted →".ljust(22) + " ".join(c[:10].ljust(10) for c in cols)
     print(header)
@@ -85,15 +99,13 @@ def main() -> None:
         line = exp.ljust(22) + " ".join(str(row.get(c, 0)).ljust(10) for c in cols)
         print(line)
 
-    # Per-category recall, with attention to reply_today + opportunities
     print()
     for exp in ("reply_today", "opportunities"):
         total = sum(matrix.get(exp, {}).values())
         right = matrix.get(exp, {}).get(exp, 0)
         if total:
-            print(f"  recall({exp}) = {right}/{total} ({100*right/total:.0f}%)")
+            print(f"  recall({exp}) = {right}/{total} ({100*right/total:.0f}%)  (target ≥85%)")
 
-    # Archive leak (archive misclassified as anything else)
     arch_total = sum(matrix.get("archive", {}).values())
     arch_leak = arch_total - matrix.get("archive", {}).get("archive", 0)
     if arch_total:

@@ -45,32 +45,19 @@ Stay factual on names, dates, and amounts — never invent details. If intent is
 
 ## Output
 
-Return ONLY valid JSON, no preamble, no markdown fences:
+Write the classifications to `tmp/classifications.jsonl`, one JSON object per line. Each line:
 
 ```
-{
-  "categories": {
-    "reply_today":      [<email>, ...],
-    "important_fyi":    [<email>, ...],
-    "opportunities":    [<email>, ...],
-    "diploma_learning": [<email>, ...],
-    "archive":          [<email>, ...]
-  }
-}
+{"gmail_msg_id": "<id from input>", "category": "<one of the 5>", "summary": "<one line in Bashir's voice>", "why_priority": "<one short line>"}
 ```
 
-Where `<email>` is:
+For `archive`, `summary` and `why_priority` may be `null`:
 
 ```
-{
-  "id": "<gmail_msg_id from input>",
-  "category": "<one of the 5>",
-  "summary": "<one line, in Bashir's voice>",
-  "why_priority": "<why it lands in this category, one short line>"
-}
+{"gmail_msg_id": "...", "category": "archive", "summary": null, "why_priority": null}
 ```
 
-For `archive`, include `id` and `category` only — omit `summary` and `why_priority` to save tokens.
+Every input email gets exactly one line in the output. No extra commentary, no markdown fences in the file — just JSONL.
 
 ## Rules
 

@@ -28,3 +28,5 @@ dashboard/node_modules/
 # Logs / scratch
 *.log
 scratch/
+tmp/
+evals/_*.jsonl
