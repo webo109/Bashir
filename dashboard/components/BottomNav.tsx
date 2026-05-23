@@ -7,6 +7,7 @@ export function BottomNav() {
   const items: Array<{ href: string; label: string; icon: string }> = [
     { href: "/today", label: "Today", icon: "●" },
     { href: "/archive", label: "Archive", icon: "○" },
+    { href: "/senders", label: "Senders", icon: "◆" },
   ];
   return (
     <nav className="fixed bottom-0 inset-x-0 bg-white border-t border-[#ECE7DD] flex justify-around py-2 pb-4 md:hidden z-10">

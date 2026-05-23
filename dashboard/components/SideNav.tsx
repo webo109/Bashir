@@ -25,6 +25,14 @@ export function SideNav() {
       >
         Archive
       </Link>
+      <Link
+        href="/senders"
+        className={`block py-2 px-3 rounded-md mb-1 text-sm ${
+          path.startsWith("/senders") ? "bg-[#F2EDE2] font-semibold" : "text-[#3D362F]"
+        }`}
+      >
+        Senders
+      </Link>
       <div className="mt-auto">
         <form action="/api/logout" method="POST">
           <button className="text-sm text-[#9C9189] hover:text-[#1A1614]">⏻ Logout</button>
