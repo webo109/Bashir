@@ -1,6 +1,7 @@
 import type { EmailRow } from "@/lib/types";
 import { CATEGORY_COLOR } from "@/lib/types";
 import { relativeTime } from "@/lib/time";
+import { UnsubButton } from "./UnsubButton";
 
 export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot?: boolean }) {
   const href = email.gmail_url || "#";
@@ -13,7 +14,7 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
         rel="noopener noreferrer"
         className="block"
       >
-        <div className="flex items-baseline justify-between gap-2">
+        <div className="flex items-baseline justify-between gap-2 pr-24">
           <div className="font-semibold text-[#1A1614] text-sm truncate">
             {showDot && (
               <span
@@ -44,18 +45,13 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
           </div>
         )}
       </a>
-      {email.unsubscribe_url && (
-        <a
-          href={email.unsubscribe_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="absolute top-2.5 right-2.5 text-[10px] uppercase tracking-wider text-[#9C9189] hover:text-[#9C7847] font-semibold"
-          title="Unsubscribe from this sender"
-        >
-          Unsub ↗
-        </a>
-      )}
+      <div className="absolute top-2.5 right-2.5">
+        <UnsubButton
+          url={email.unsubscribe_url}
+          one_click={email.unsubscribe_one_click}
+          fallbackUrl={email.gmail_url}
+        />
+      </div>
     </div>
   );
 }

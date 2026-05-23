@@ -1,4 +1,5 @@
 import { getNoiseGenerators } from "@/lib/queries";
+import { UnsubButton } from "@/components/UnsubButton";
 
 export const dynamic = "force-dynamic";
 
@@ -86,23 +87,12 @@ export default async function SendersPage({
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
-              {s.unsubscribe_url ? (
-                <a
-                  href={s.unsubscribe_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs font-semibold bg-[#9C7847] text-[#FBFAF7] px-3 py-1.5 rounded-full hover:bg-[#7A5A33]"
-                >
-                  Unsubscribe ↗
-                </a>
-              ) : (
-                <span
-                  className="text-xs text-[#9C9189] bg-[#F2EDE2] px-3 py-1.5 rounded-full"
-                  title="No List-Unsubscribe header"
-                >
-                  No unsub link
-                </span>
-              )}
+              <UnsubButton
+                url={s.unsubscribe_url}
+                one_click={s.unsubscribe_one_click}
+                fallbackUrl={gmailSearch(s.from_email)}
+                size="md"
+              />
               <a
                 href={gmailSearch(s.from_email)}
                 target="_blank"
