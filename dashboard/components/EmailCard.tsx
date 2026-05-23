@@ -50,6 +50,7 @@ export function EmailCard({ email, showDot = false }: { email: EmailRow; showDot
           <UnsubButton
             url={email.unsubscribe_url}
             one_click={email.unsubscribe_one_click}
+            fromEmail={email.from_email}
           />
         </div>
       )}

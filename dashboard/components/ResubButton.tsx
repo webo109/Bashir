@@ -1,5 +1,7 @@
 "use client";
 
+import { setSenderState } from "@/lib/sender-state";
+
 interface Props {
   /** Sender's email address (e.g. "updates@taskade.com"). */
   fromEmail: string | null;
@@ -29,7 +31,10 @@ export function ResubButton({ fromEmail, size = "sm" }: Props) {
       href={href}
       target="_blank"
       rel="noopener noreferrer"
-      onClick={(e) => e.stopPropagation()}
+      onClick={(e) => {
+        e.stopPropagation();
+        setSenderState(fromEmail, "resubscribed");
+      }}
       title={`Open ${href} to resubscribe`}
       className={`${base} ${sizing} bg-white border border-[#ECE7DD] text-[#3D362F] hover:border-[#D6CDB8]`}
     >

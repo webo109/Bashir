@@ -1,6 +1,7 @@
 import { getNoiseGenerators } from "@/lib/queries";
 import { UnsubButton } from "@/components/UnsubButton";
 import { ResubButton } from "@/components/ResubButton";
+import { SenderStatusBadge } from "@/components/SenderStatusBadge";
 
 export const dynamic = "force-dynamic";
 
@@ -83,14 +84,18 @@ export default async function SendersPage({
                   {s.from_email}
                 </div>
               </div>
-              <div className="text-[10px] font-semibold bg-[#1A1614] text-[#FBFAF7] px-2 py-0.5 rounded-full whitespace-nowrap">
-                {s.total} email{s.total === 1 ? "" : "s"}
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <SenderStatusBadge fromEmail={s.from_email} />
+                <div className="text-[10px] font-semibold bg-[#1A1614] text-[#FBFAF7] px-2 py-0.5 rounded-full whitespace-nowrap">
+                  {s.total} email{s.total === 1 ? "" : "s"}
+                </div>
               </div>
             </div>
             <div className="flex flex-wrap gap-2 mt-3">
               <UnsubButton
                 url={s.unsubscribe_url}
                 one_click={s.unsubscribe_one_click}
+                fromEmail={s.from_email}
                 size="md"
               />
               <ResubButton fromEmail={s.from_email} size="md" />
