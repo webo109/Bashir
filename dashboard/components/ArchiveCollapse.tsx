@@ -27,7 +27,7 @@ export function ArchiveCollapse({ emails }: { emails: EmailRow[] }) {
               >
                 <span className="text-[#3D362F]">{e.from_name || e.from_email}</span> —{" "}
                 {e.subject || "(no subject)"}{" "}
-                <span className="text-[#9C9189]">· {relativeTime(e.received_at)}</span>
+                <span className="text-[#7A7066]">· {relativeTime(e.received_at)}</span>
               </a>
             </li>
           ))}

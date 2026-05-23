@@ -48,7 +48,7 @@ export default async function ArchivePage({
 
   return (
     <>
-      <div className="font-serif text-2xl mb-4">Archive</div>
+      <h1 className="font-serif text-2xl mb-4">Archive</h1>
       <div className="flex flex-col gap-3 mb-5 sticky top-0 bg-[#FBFAF7] pt-1 pb-3 z-[1]">
         <ArchiveSearch />
         <ArchiveFilters accounts={accounts} />

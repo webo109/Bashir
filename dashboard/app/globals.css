@@ -11,7 +11,10 @@
     --bashir-ink: #1A1614;
     --bashir-ink-2: #3D362F;
     --bashir-mute: #7A7066;
-    --bashir-faint: #9C9189;
+    /* NIT-8: was #9C9189 (≈3.1:1 on white, fails WCAG AA). Darkened to match
+       --bashir-mute for AA-compliant body text. Decorative dots keep the
+       lighter shade inline (see lib/types.ts CATEGORY_COLOR.archive). */
+    --bashir-faint: #7A7066;
     --bashir-border: #ECE7DD;
     --bashir-copper: #9C7847;
 
@@ -50,3 +53,11 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 .fade-up { animation: fadeUp 0.35s ease-out both; }
+
+/* NIT-3: shake keyframes live here (used by the login page on wrong password)
+   instead of an inline <style jsx global> block in app/login/page.tsx. */
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-6px); }
+  75% { transform: translateX(6px); }
+}
