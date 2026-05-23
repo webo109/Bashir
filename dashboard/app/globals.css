@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* Bashir editorial palette */
+    --bashir-bg: #FBFAF7;
+    --bashir-surface: #FFFFFF;
+    --bashir-surface-2: #F2EDE2;
+    --bashir-ink: #1A1614;
+    --bashir-ink-2: #3D362F;
+    --bashir-mute: #7A7066;
+    --bashir-faint: #9C9189;
+    --bashir-border: #ECE7DD;
+    --bashir-copper: #9C7847;
+
+    /* shadcn theme tokens (HSL channel values used by Tailwind config) */
+    --background: 39 27% 98%;
+    --foreground: 20 13% 9%;
+    --card: 0 0% 100%;
+    --card-foreground: 20 13% 9%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 20 13% 9%;
+    --primary: 20 13% 9%;
+    --primary-foreground: 39 27% 98%;
+    --secondary: 36 28% 92%;
+    --secondary-foreground: 20 13% 9%;
+    --muted: 36 28% 92%;
+    --muted-foreground: 25 11% 44%;
+    --accent: 36 28% 92%;
+    --accent-foreground: 20 13% 9%;
+    --destructive: 13 56% 50%;
+    --destructive-foreground: 39 27% 98%;
+    --border: 36 26% 89%;
+    --input: 36 26% 89%;
+    --ring: 25 11% 44%;
+    --radius: 0.625rem;
+  }
+  body {
+    font-family: var(--font-inter), system-ui, sans-serif;
+  }
+  .font-serif {
+    font-family: Georgia, "Times New Roman", serif;
+  }
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.fade-up { animation: fadeUp 0.35s ease-out both; }
