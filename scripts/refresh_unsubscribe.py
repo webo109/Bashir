@@ -26,10 +26,14 @@ def main() -> None:
     p.add_argument("account", nargs="?", help="Restrict to this account email")
     p.add_argument("--stale-days", type=int, default=30)
     p.add_argument("--new-senders-only", action="store_true",
-                   help="Treat stale-days as infinite — only fill genuinely missing senders")
+                   help="Skip refresh of existing rows — only fill genuinely missing senders")
     args = p.parse_args()
 
-    stale = 10**6 if args.new_senders_only else args.stale_days
+    # --new-senders-only means "every existing row counts as fresh" → set a
+    # very high stale-days so the staleness cutoff lands far in the past and
+    # all existing rows are considered fresh. (Earlier this was 10**6 which
+    # overflowed timedelta — datetime can't represent dates that far back.)
+    stale = 36_500 if args.new_senders_only else args.stale_days  # ~100 years
     pending = supabase_client.get_senders_needing_unsubscribe_refresh(stale_days=stale)
     print(f"{len(pending)} sender(s) need refresh.")
     if not pending:
